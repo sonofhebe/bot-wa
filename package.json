@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "gas": "node server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -11,7 +12,8 @@
   "keywords": [],
   "description": "",
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.2",
+    "@whiskeysockets/baileys": "^6.6.0",
+    "express": "^4.19.2",
     "qrcode-terminal": "^0.12.0"
   }
 }
