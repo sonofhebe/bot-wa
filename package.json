@@ -14,6 +14,7 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^6.6.0",
     "express": "^4.19.2",
+    "g4f": "^1.4.3",
     "qrcode-terminal": "^0.12.0"
   }
 }

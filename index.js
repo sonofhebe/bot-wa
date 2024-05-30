@@ -4,88 +4,167 @@ const {
   DisconnectReason,
   useMultiFileAuthState,
 } = require("@whiskeysockets/baileys");
+const { G4F } = require("g4f");
+const g4f = new G4F();
 
 const app = express();
 let sock;
 
 async function connectToWhatsApp() {
-  const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
-  sock = makeWASocket({
-    printQRInTerminal: true,
-    auth: state,
-  });
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState(
+      "auth_info_baileys"
+    );
+    sock = makeWASocket({
+      printQRInTerminal: true,
+      auth: state,
+    });
 
-  sock.ev.on("connection.update", (update) => {
-    const { connection, lastDisconnect } = update;
-    if (connection === "close") {
-      const shouldReconnect =
-        lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log(
-        "connection closed due to ",
-        lastDisconnect.error,
-        ", reconnecting ",
-        shouldReconnect
-      );
-      // reconnect if not logged out
-      if (shouldReconnect) {
-        connectToWhatsApp();
+    sock.ev.on("connection.update", (update) => {
+      const { connection, lastDisconnect } = update;
+      if (connection === "close") {
+        const shouldReconnect =
+          lastDisconnect.error?.output?.statusCode !==
+          DisconnectReason.loggedOut;
+        console.log(
+          "connection closed due to ",
+          lastDisconnect.error,
+          ", reconnecting ",
+          shouldReconnect
+        );
+        // reconnect if not logged out
+        if (shouldReconnect) {
+          setTimeout(connectToWhatsApp, 5000); // retry after 5 seconds
+        }
+      } else if (connection === "open") {
+        console.log("opened connection");
       }
-    } else if (connection === "open") {
-      console.log("opened connection");
-    }
-  });
+    });
 
-  sock.ev.on("creds.update", saveCreds);
+    sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("messages.upsert", async (m) => {
-    const message = m.messages[0];
-    if (message.key.fromMe) return; // Ignore messages sent by your own number
+    sock.ev.on("messages.upsert", async (m) => {
+      const message = m.messages[0];
+      if (message.key.fromMe) return; // Ignore messages sent by your own number
 
-    const jid = message.key.remoteJid; // JID (Jabber ID) of the sender
-    let replyText = "";
+      const jid = message.key.remoteJid; // JID (Jabber ID) of the sender
+      let replyText = "";
+      let messageText = "";
 
-    // replyText = `Hi,
-    // This is Wildan's temporary WhatsApp account. Wildan's main WhatsApp account (6289650973972) is now active again. This temporary account will be deleted soon, so please remove it from your contacts. This message will be forwarded to the main WhatsApp account. Thank you.`;
-    // forward chat
-    // const forwardJid = "6289650973972@s.whatsapp.net"; // JID of the recipient contact
-    // const messageId = message.key.id; // ID of the message to forward
-    //     await sock.sendMessage(forwardJid, {
-    //       text: `Forward text
-    // from : ${jid.split("@")[0]}
-
-    // ${messageText}`,
-    //       quoted: { key: { remoteJid: jid, id: messageId } },
-    //     });
-
-    // =================================== AUTO REPLY =======================================
-    if (jid.endsWith("@g.us")) {
-      const messageText = message.message.conversation; // Content of the message
-      // ------------- GROUP -----------
-      return;
-    } else {
-      const messageText = message.message.extendedTextMessage.text; // Content of the message
-      // ------------- PC -----------
-      if (messageText.toLowerCase().includes("hello")) {
-        replyText = `Hi ${message.pushName}! How can I help you?`;
-        await sock.sendMessage(jid, { text: replyText });
-      } else if (messageText.toLowerCase().includes("how are you")) {
-        replyText = "I'm doing well, thank you! How about you?";
-        await sock.sendMessage(jid, { text: replyText });
+      // get message
+      if (jid.endsWith("@g.us")) {
+        messageText = message.message.conversation;
+      } else {
+        if (message.message.conversation) {
+          messageText = message.message.conversation;
+        } else if (
+          message.message.extendedTextMessage &&
+          message.message.extendedTextMessage.text
+        ) {
+          messageText = message.message.extendedTextMessage.text;
+        }
       }
-    }
-    // ================================= END AUTO REPLY =======================================
-  });
+
+      // ------------- rule -----------
+      if (messageText.toLowerCase().includes("belp")) {
+        const messageToSend = messageText.replace("belp", "").trim();
+
+        if (messageText.toLowerCase().includes("hello")) {
+          replyText = `Hi ${message.pushName}! How can I help you?`;
+          await sock.sendMessage(jid, { text: replyText });
+          return;
+        }
+        if (messageText.toLowerCase().includes("how are you")) {
+          replyText = "I'm doing well, thank you! How about you?";
+          await sock.sendMessage(jid, { text: replyText });
+          return;
+        }
+
+        fetchAI(messageToSend);
+        return;
+      }
+      async function fetchAI(messageToSend) {
+        try {
+          const messages = [
+            {
+              role: "user",
+              content:
+                "Nama kamu adalah Belp, bot yang dibuat oleh Wildan, jika ada yang menanyakan biodata pembuatmu adalah Wildan the son of Hebe (instagram : sonofhebe)",
+            },
+            {
+              role: "assistant",
+              content:
+                "baik, nama saya adalah Belp, dan pembuat saya adalah Wildan the son of Hebe (instagram : sonofhebe)",
+            },
+            {
+              role: "user",
+              content: messageToSend,
+            },
+          ];
+          const options = {
+            model: "gpt-4",
+            debug: false,
+            retry: {
+              times: 3,
+              condition: (text) => {
+                const words = text.split(" ");
+                return words.length > 10;
+              },
+            },
+          };
+
+          if (messageToSend.toLowerCase().includes("buat gambar")) {
+            let imageText = messageToSend.replace("belp", "").trim();
+            imageText = messageToSend.replace("Belp", "").trim();
+            imageText = messageToSend.replace("buat gambar ", "").trim();
+            await sock.sendMessage(jid, {
+              text:
+                "Baik tunggu sebentar ya, saya akan menggambar " + imageText,
+            });
+            const base64Image = await g4f.imageGeneration(imageText, {
+              debug: false,
+              provider: g4f.providers.Prodia,
+            });
+            // Convert base64 string to Buffer
+            const imageBuffer = Buffer.from(base64Image, "base64");
+            await sock.sendMessage(jid, {
+              image: imageBuffer,
+              caption: "Berikut adalah gambar " + imageText,
+            });
+          } else {
+            const response = await g4f.chatCompletion(messages, options);
+            // console.log("AI response:", response);
+            await sock.sendMessage(jid, {
+              text: response,
+            });
+          }
+        } catch (error) {
+          console.error("Failed to fetch AI response:", error);
+          await sock.sendMessage(jid, {
+            text: "Sorry, I couldn't process your request at the moment🙏",
+          });
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Failed to connect to WhatsApp:", error);
+    setTimeout(connectToWhatsApp, 5000); // retry after 5 seconds
+  }
 }
 
+const APIKey = "anaklanang";
 // =================================== API =======================================
 app.post("/send-message", async (req, res) => {
   try {
-    const { phone, group, message } = req.query;
+    const { key, phone, group, message } = req.query;
+    if (key !== APIKey) {
+      return res.status(401).send("Access denied because u're ugly!");
+    }
     if (!phone && !group) {
-      return res.status(400).send("ID recivier are required");
+      return res.status(400).send("ID receiver are required");
     }
     if (!message) {
-      return res.status(400).send("Message are required");
+      return res.status(400).send("Message is required");
     }
     let jid;
     if (group) {
@@ -101,8 +180,13 @@ app.post("/send-message", async (req, res) => {
     res.status(500).send("Failed to send message");
   }
 });
+
 app.post("/group-list", async (req, res) => {
   try {
+    const { key } = req.query;
+    if (key !== APIKey) {
+      return res.status(401).send("Access denied because u're ugly!");
+    }
     if (!sock) {
       return res.status(500).send("WhatsApp socket is not initialized");
     }
