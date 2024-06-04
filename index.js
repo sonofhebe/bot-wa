@@ -114,9 +114,9 @@ async function connectToWhatsApp() {
           };
 
           if (messageToSend.toLowerCase().includes("buat gambar")) {
-            let imageText = messageToSend.replace("belp", "").trim();
-            imageText = imageText.replace("Belp", "").trim();
-            imageText = imageText.replace("buat gambar", "").trim();
+            let imageText = messageToSend.replace(/belp/gi, "").trim();
+            imageText = imageText.replace(/buat gambar/gi, "").trim();
+
             await sock.sendMessage(jid, {
               text:
                 "Baik tunggu sebentar ya, saya akan menggambar " + imageText,
