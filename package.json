@@ -13,8 +13,10 @@
   "description": "",
   "dependencies": {
     "@whiskeysockets/baileys": "^6.6.0",
+    "axios": "^1.7.7",
     "express": "^4.19.2",
     "g4f": "^1.4.3",
+    "node-gtts": "^2.0.2",
     "qrcode-terminal": "^0.12.0"
   }
 }

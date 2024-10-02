@@ -6,7 +6,7 @@ const {
 } = require("@whiskeysockets/baileys");
 const { G4F } = require("g4f");
 const g4f = new G4F();
-
+const gtts = require("node-gtts")("id");
 const app = express();
 let sock;
 
@@ -67,40 +67,32 @@ async function connectToWhatsApp() {
 
       // ------------- rule -----------
       if (messageText.toLowerCase().includes("belp")) {
-        const messageToSend = messageText.replace("belp", "").trim();
+        try {
+          const messageToSend = messageText.replace("belp", "").trim();
 
-        if (messageText.toLowerCase().includes("hello")) {
-          replyText = `Hi ${message.pushName}! How can I help you?`;
-          await sock.sendMessage(jid, { text: replyText });
+          if (messageText.toLowerCase().includes("hello")) {
+            replyText = `Hi ${message.pushName}! How can I help you?`;
+            await sock.sendMessage(jid, { text: replyText });
+            return;
+          }
+          if (messageText.toLowerCase().includes("how are you")) {
+            replyText = "I'm doing well, thank you! How about you?";
+            await sock.sendMessage(jid, { text: replyText });
+            return;
+          }
+
+          fetchAI(messageToSend);
+          return;
+        } catch (error) {
+          console.error("Failed to fetch AI response:", error);
+          await sock.sendMessage(jid, {
+            text: "Sorry, I couldn't process your request at the moment🙏",
+          });
           return;
         }
-        if (messageText.toLowerCase().includes("how are you")) {
-          replyText = "I'm doing well, thank you! How about you?";
-          await sock.sendMessage(jid, { text: replyText });
-          return;
-        }
-
-        fetchAI(messageToSend);
-        return;
       }
       async function fetchAI(messageToSend) {
         try {
-          const messages = [
-            {
-              role: "user",
-              content:
-                "Nama kamu adalah Belp, bot yang dibuat oleh Wildan, jika ada yang menanyakan biodata pembuatmu adalah Wildan the son of Hebe (instagram : sonofhebe)",
-            },
-            {
-              role: "assistant",
-              content:
-                "baik, nama saya adalah Belp, dan pembuat saya adalah Wildan the son of Hebe (instagram : sonofhebe)",
-            },
-            {
-              role: "user",
-              content: messageToSend,
-            },
-          ];
           const options = {
             model: "gpt-4",
             debug: false,
@@ -132,11 +124,70 @@ async function connectToWhatsApp() {
               caption: "Berikut adalah gambar " + imageText,
             });
           } else {
-            const response = await g4f.chatCompletion(messages, options);
-            // console.log("AI response:", response);
-            await sock.sendMessage(jid, {
-              text: response,
-            });
+            if (messageToSend.toLowerCase().includes(".voice")) {
+              messageToSend = messageToSend.replace(/.voice/gi, "").trim();
+              const messages = [
+                {
+                  role: "user",
+                  content:
+                    "Nama kamu adalah Belp, bot yang dibuat oleh Wildan, jika ada yang menanyakan biodata pembuatmu adalah Wildan the son of Hebe (instagram : sonofhebe)",
+                },
+                {
+                  role: "assistant",
+                  content:
+                    "baik, nama saya adalah Belp, dan pembuat saya adalah Wildan the son of Hebe (instagram : sonofhebe)",
+                },
+                {
+                  role: "user",
+                  content: messageToSend,
+                },
+              ];
+              const response = await g4f.chatCompletion(messages, options);
+              const audioPath = "./voice_note.mp3";
+
+              gtts.save(audioPath, response, async function (err) {
+                if (err) {
+                  console.error("Error generating audio:", err);
+                  return;
+                }
+                // const fileUrl = await uploadFile(audioPath);
+                await sendVoiceNote(audioPath);
+              });
+              //send audio
+              async function sendVoiceNote(fileUrl) {
+                try {
+                  const msg = await sock.sendMessage(
+                    jid,
+                    { audio: { url: fileUrl }, mimetype: "audio/mp4" },
+                    { url: fileUrl } // can send mp3, mp4, & ogg
+                  );
+                  console.log("sending voice", msg);
+                } catch (error) {
+                  console.error("Error sending voice:", error);
+                }
+              }
+            } else {
+              const messages = [
+                {
+                  role: "user",
+                  content:
+                    "Nama kamu adalah Belp, bot yang dibuat oleh Wildan, jika ada yang menanyakan biodata pembuatmu adalah Wildan the son of Hebe (instagram : sonofhebe)",
+                },
+                {
+                  role: "assistant",
+                  content:
+                    "baik, nama saya adalah Belp, dan pembuat saya adalah Wildan the son of Hebe (instagram : sonofhebe)",
+                },
+                {
+                  role: "user",
+                  content: messageToSend,
+                },
+              ];
+              const response = await g4f.chatCompletion(messages, options);
+              await sock.sendMessage(jid, {
+                text: response,
+              });
+            }
           }
         } catch (error) {
           console.error("Failed to fetch AI response:", error);
