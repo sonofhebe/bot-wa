@@ -55,17 +55,29 @@ async function connectToWhatsApp() {
     const imageMessage = msg.message?.imageMessage;
     const caption = imageMessage?.caption || "";
 
-    // Trigger hanya dengan kata "belp"
-    if (text.toLowerCase().includes("belp") || imageMessage) {
+    // Trigger hanya dengan kata "belp" - BAIK UNTUK TEKS MAUPUN GAMBAR
+    const hasBelpInText = text.toLowerCase().includes("belp");
+    const hasBelpInCaption = caption.toLowerCase().includes("belp");
+
+    // Hanya proses jika ada kata "belp" di text atau caption
+    if (hasBelpInText || hasBelpInCaption) {
       try {
-        let userText = text.toLowerCase().includes("belp")
-          ? text.replace(/belp/gi, "").trim()
-          : caption.trim();
+        let userText = "";
 
-        // Kalau ada gambar + caption kosong → tanya dulu atau langsung analisis
-        if (imageMessage && !userText) userText = "jelaskan gambar ini";
+        // Ambil teks dan hilangkan kata "belp"
+        if (hasBelpInText) {
+          userText = text.replace(/belp/gi, "").trim();
+        } else if (hasBelpInCaption) {
+          userText = caption.replace(/belp/gi, "").trim();
+        }
 
-        if (!userText && !imageMessage) {
+        // Kalau ada gambar tapi userText kosong setelah hilangkan "belp"
+        if (imageMessage && !userText) {
+          userText = "jelaskan gambar ini";
+        }
+
+        // Kalau tidak ada gambar dan userText kosong
+        if (!imageMessage && !userText) {
           await sock.sendMessage(jid, { text: "Yo! What can i help? 😄" });
           return;
         }
@@ -213,6 +225,55 @@ async function streamToBuffer(stream) {
   }
   return Buffer.concat(chunks);
 }
+
+// =================================== API =======================================
+const APIKey = "J$ON fineshyt";
+
+app.post("/send-message", async (req, res) => {
+  try {
+    const { key, phone, group, message } = req.query;
+    if (key !== APIKey) {
+      return res.status(401).send("Access denied because u're ugly!");
+    }
+    if (!phone && !group) {
+      return res.status(400).send("ID receiver are required");
+    }
+    if (!message) {
+      return res.status(400).send("Message is required");
+    }
+    let jid;
+    if (group) {
+      jid = group + "@g.us";
+    } else if (phone) {
+      jid = phone + "@s.whatsapp.net";
+    }
+
+    await sock.sendMessage(jid, { text: message });
+    res.status(200).send("Message sent successfully");
+  } catch (error) {
+    console.error("Failed to send message:", error);
+    res.status(500).send("Failed to send message");
+  }
+});
+
+app.post("/group-list", async (req, res) => {
+  try {
+    const { key } = req.query;
+    if (key !== APIKey) {
+      return res.status(401).send("Access denied because u're ugly!");
+    }
+    if (!sock) {
+      return res.status(500).send("WhatsApp socket is not initialized");
+    }
+
+    const groups = await sock.groupFetchAllParticipating();
+    res.status(200).json(groups);
+  } catch (error) {
+    console.error("Failed to get groups:", error);
+    res.status(500).send("Failed to get groups");
+  }
+});
+// =================================== API END =======================================
 
 // Start server
 const PORT = process.env.PORT || 6664;
