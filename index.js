@@ -215,7 +215,7 @@ async function streamToBuffer(stream) {
 }
 
 // Start server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 6664;
 app.listen(PORT, () => {
   console.log(`Server jalan di port ${PORT}`);
   connectToWhatsApp();
